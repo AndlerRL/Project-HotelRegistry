@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" name="viewport" content="width= device-width, initial-scale= 1">
+<link rel="stylesheet" href="data/jquery.mobile-1.4.5.css">
+<link rel="stylesheet" href="data/themes/thy-custom.css">
+<link rel="stylesheet" href="data/themes/jquery.mobile.icons.min.css">
+<script src="data/external/jquery/jquery.js"></script>
+<script src="data/jquery.mobile-1.4.5.js"></script>	
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDcrUcYt4aJxIazW04H4eSkWvRk76FG6TY&callback=initMap"></script>
+	<title>Web App - Hoteles</title>
+
+<style type="text/css">
+	#HotelPage,
+	#HotelMap,
+	#RegistryPage,
+	#RegistryMap {
+		width: 100%; height: 425px; padding: 0;
+	}
+
+	#Homepage {
+		background: url("data/images/HomeScreen.jpg");
+		position: absolute;
+	}
+
+	#ListPage {
+		background: url("data/images/ListScreen.jpg");
+		position: absolute;
+	}
+
+	li.right {
+		-webkit-transition: -webkit-transform 500ms ease;
+    	-webkit-transform: translateX(100%);
+	    -moz-transition: -moz-transform 500ms ease;
+	    -moz-transform: translateX(100%);
+	    -o-transition: -o-transform 500ms ease;
+	    -o-transform: translateX(100%);
+		transition: transform 500ms ease;
+		transform: translateX(100%);
+	}
+
+	li.right a.ui-btn {
+		border-left-width: 1px;
+		border-right-width: 1px;
+		border-top-width: 0; 
+	}
+
+	li a.ui-btn.border-bottom {
+		border-bottom-width: 1px;
+	}
+
+	ul.touch li.ui-li-has-alt a.delete {
+		display: none;
+	}
+
+	ul.touch li.ui.li-has-alt a.ui-btn {
+		margin-right: 0;
+	}
+
+	#confirm p {
+		text-align: center;
+		font-size: inherit;
+		margin.bottom: .75em;
+	}
+
+</style>
+
+<script type="text/javascript">
+	function changePage(page) {
+		$.mobile.changePage("#"+ page, {
+			transition: "fade"
+		});
+	}
+
+
+	$(document).ready(function() {
+
+		//////  Variables Globales  //////
+
+		var marker;
+		var mapReg;
+		var mapHotel;
+		var latPoint;
+		var lngPoint;
+		var directionsDisplay;
+		var yourPoint;
+		var points= [];
+		var markers= [];
+		var directionsService= new google.maps.DirectionsService();
+
+		
+
+		  //////////////////////////////////////////////////////////
+		 //////  MAPA DE REGISTRO, GEOLOCALIZACIÓN DEL MAPA  //////
+		//////////////////////////////////////////////////////////
+
+		function showRegMap(position) {
+			var opt= {
+				zoom: 10,
+				center: position,
+				mapTypeId: google.maps.MapTypeId.ROADMAP
+			};
+
+			mapReg= new google.maps.Map(document.getElementById('RegistryMap'), opt);
+			marker= new google.maps.Marker({
+				position: position,
+				map: mapReg,
+				draggable: true,
+				title: "Tú estás aquí."
+			});
+
+			google.maps.event.addListener(marker, 'dragend', function(event) {
+				latPoint= event.latLng.lat();
+				lngPoint= event.latLng.lng();
+				getAddress();
+			});
+		}
+
+		function success(pos) {
+			var latlng= new google.maps.LatLng(pos.coords.latitude, pos.coords.longitude);
+
+			showRegMap(latlng);
+			mapHotels(latlng);
+		}
+
+		function failled(error) {
+			if (error.code == 0) {
+				window.alert("¡Ops! No se puede obtener la posición actual.");
+			}
+			if (error.code == 1) {
+				window.alert("¡Ops! Algo salió mal.")
+			}
+			if (error.code == 2) {
+				window.alert("¡Ops! No has aceptado compartir tu posición.");
+			}
+			if (error.code == 3) {
+				window.alert("¡Ops! Se superó el tiempo de espera.")
+			}
+		}
+
+		function obtainActualPos() {
+			if (navigator.geolocation) {
+				navigator.geolocation.getCurrentPosition(success, failled, {
+					maximunAge: 500000, enableHighAccuracy: true,	timeout: 6000
+				});
+			}
+		}
+
+		function getAddress() {
+			var geocoder= new google.maps.Geocoder();
+			var newLatLng= new google.maps.LatLng(latPoint, lngPoint);
+
+			$.mobile.loading("show", {
+				text: "Obteniendo dirección...", textVisible: true, theme: "a", textonly: false, 
+			});
+
+			geocoder.geocode({
+				"latLng": newLatLng
+			}, function(results, status) {
+				if (status == google.maps.GeocoderStatus.OK) {
+					$("#address").val(results[0].formatted_address);
+					$.mobile.loading("hide");
+				} else {
+					$.mobile.loading("hide");
+					$("#alert1").popup('open');
+					window.alert(status);
+				}
+			});
+		}
+
+		
+
+		
+
+
+
+
+
+
+
+		  //////////////////////////////////////////////////////////////
+		 //////  RUTAS DE HOTELES REGISTRADOS, MAPA DE LA LISTA  //////
+		//////////////////////////////////////////////////////////////
+
+		function mapHotels(position) {
+			var opt= {
+				zoom: 10,
+				center: position,
+				mapTypeId: google.maps.MapTypeId.ROADMAP,
+			};
+
+			var mapHotel= new google.maps.Map(document.getElementById('HotelMap'), opt);
+			var yourPoint= new google.maps.Marker({
+				center: position,
+				icon: "data/images/icons-png/location-black.png",
+				title: "Tú estás aquí",
+				map: mapHotel
+			});
+
+			for (var i = 0; i < points.length; i++) {
+				var newLatLng= new google.maps.LatLng(points[i].lat, points[i].lng);
+				var markers= new google.maps.Marker({
+					position: newLatLng,
+					map: mapHotel,
+					title: points[i].name,
+					icon: "data/images/png/glyphicons-239-pin.png"
+				});
+
+				var infoWin= '<div style="width: 150px; height: 75px;">'+'<h4>'+ points[i].name + '</h4>'+ '<p>'+ points[i].address +'</p>'+  '</div>'
+
+				var infoWindow= new google.maps.InfoWindow({
+					content: infoWin
+				});
+
+				google.maps.event.addListener(markers, 'click', function() {
+					infoWindow.open(mapHotel, markers);
+				});
+
+				google.maps.event.addListener(markers, 'click', function(event) {
+				directionsDisplay= new google.maps.DirectionsRenderer();
+				directionsDisplay.setMap(mapHotel);
+
+				var petition= {
+					origin: position,
+					destination: newLatLng,
+					travelMode: google.maps.TravelMode.DRIVING
+				};
+
+				directionsService.route(petition, function(answer, status) {
+					if (status == google.maps.DirectionsStatus.OK) {
+						directionsDisplay.setDirections(answer);
+						directionsDisplay.setOptions({
+							suppressMarkers: true
+						});
+					} else {
+						$("#alert1").popup('open');
+						window.alert(status);
+					}
+				});
+
+				markers.getPosition(event.latLng);
+			});
+			}
+		}
+
+		function seeRoutes(position) {
+			
+		}
+
+
+
+
+
+
+
+		////////////////////////////////////////////
+		//////  ACCIONES, BOTONES Y REGISTRO  //////
+		////////////////////////////////////////////
+
+
+		$("#btnCompleteRegistry").click(function() {
+			var point= {
+				name: $("#name").val(),
+				address: $("#address").val(),
+				phone: $("#phone").val(),
+				star: parseFloat($("#star").val()),
+				lat: latPoint,
+				lng: lngPoint
+			};
+			points.push(point);
+
+			$("#regComplete").popup('open');
+			$("#name").val("");
+			$("#address").val("");
+			$("#phone").val("");
+			$("#star").val("");
+
+			marker.setPosition(obtainActualPos());
+			mapReg.setCenter(obtainActualPos());
+		});
+
+		$("#btnRegistry").click(function() {
+			changePage("RegistryPage");
+			obtainActualPos();
+		});
+
+		$("#btnBack").click(function() {
+			changePage("Homepage");
+		});
+
+		$("#btnList").click(function() {
+			$("#listHotel").empty();
+
+
+			for (var i = 0; i < points.length; i++) {
+				var point= "";
+
+				point+= "<a href='#'>";
+				point+= "<h2 class='topic'>" + points[i].name + "</h2>";
+				point+= "<p>" + "<img src='data/images/png/glyphicons-234-direction.png'> "+" "+ points[i].address+ "<br>";
+				point+= "<img src='data/images/png/glyphicons-442-phone-alt.png'> "+" "+ points[i].phone+ "<br>";
+				point+= "<img src='data/images/png/glyphicons-50-star.png'> "+" "+ points[i].star+ "</p>";
+				point+= "<a href='#' class='delete' title='Eliminar'></a>";
+				point+= "</a>";
+
+				var info= "<li>"+ point + "</li>";
+				$("#listHotel").append(info);
+			}
+
+			if (points.length > 0) {
+				changePage("ListPage");
+			} else {
+				changePage("alert2");
+			}
+		});
+
+		$("#btnHotels").click(function() {
+			if (points.length > 0) {
+				changePage("HotelPage");
+				obtainActualPos();
+			} else {
+				changePage("alert2");
+			}
+		});	
+
+
+
+
+
+	  ///////////////////////////////////////////////////////////////
+	 //////  CONFIRMACIÓN PARA ELIMINAR ELEMENTO DE LA LISTA  //////
+	///////////////////////////////////////////////////////////////
+
+	$( document ).on( "pagecreate", "#ListPage", function() {
+        $( document ).on( "swipeleft swiperight", "#listHotel li", function( event ) {
+	        var listitem = $( this ),
+	            dir = event.type === "swipeleft" ? "left" : "right",
+	            transition = $.support.cssTransform3d ? dir : false;
+	            confirmAndDelete( listitem, transition );
+	    });
+
+    if ( ! $.mobile.support.touch ) {
+        $("#listHotel").removeClass("touch");
+        $(".delete").on("click", function() {
+            var listitem = $(this).parent("li");
+            confirmAndDelete(listitem);
+        });
+    }
+
+
+	    function confirmAndDelete(listitem, transition) {
+	        listitem.children(".ui-btn")
+					.addClass("ui-btn-active");
+	         $("#confirm .topic").remove();
+	        listitem.find(".topic")
+					.clone()
+					.insertAfter("#question");
+	        $("#confirm").popup("open");
+	        $("#confirm #yes").on("click", function() {
+	            if (transition) {
+	                listitem.addClass(transition)
+	                        .on("webkitTransitionEnd transitionend otransitionend", function() {
+	                        listitem.remove();
+	                        $("#list").listview( "refresh" )
+									  .find( ".border-bottom" )
+									  .removeClass( "border-bottom" );
+	                    })
+	                    .prev("li")
+						.children("a")
+						.addClass("border-bottom")
+	                    .end()
+						.end()
+						.children(".ui-btn")
+						.removeClass("ui-btn-active");
+	            } else {
+	                listitem.remove();
+	                $("#listHotel").listview("refresh");
+	            }
+	        });
+	        $("#confirm #cancel").on("click", function() {
+	            listitem.children(".ui-btn")
+						.removeClass("ui-btn-active");
+	            $( "#confirm #yes" ).off();
+	        });
+	    }
+	});
+});
+</script>
+</head>
+
+
+
+
+
+
+
+
+
+<body>
+	<div data-role="page" id="Homepage" class="ui-page-theme-b">
+		<div data-role="header">
+			<p align="center">
+				Registro de Hoteles
+			</p>
+		</div>
+		<div data-role="content" style="width: 70%; margin: 100px auto">
+			<form>
+				<div class="ui-field-contain">
+					<a id="btnRegistry" data-role="button"  data-icon="edit">Registrar Hotel</a>
+					<a id="btnList" data-role="button" data-icon="bullets">Lista de Hoteles</a>
+				</div>
+			</form>
+		</div>
+	</div>
+
+
+
+	<div data-role="page" id="RegistryPage" class="ui-page-theme-c" style="height: auto">
+		<div data-role="header">
+			<p align="center">
+				Registro
+			</p>			
+		</div>
+		<div data-role="content">
+			<form>
+				<div class="ui-field-contain">
+					<img src="data/images/png/glyphicons-243-map-marker.png"> Ubicación: arraste el marcador para obtener la dirección.
+				</div>
+			</form>
+		</div>
+		<div data-role="content" id="RegistryMap">
+			
+		</div>
+		<div data-role="content" style="margin: 30px auto;">
+			<form>
+				<div class="ui-field-contain ui-grid-d">
+					<div class="ui-block-a" align="right" style="position: relative; top: 20px; right: 15px;">
+						<img src="data/images/png/glyphicons-234-direction.png"> 
+					</div>
+					<div class="ui-block-b" align="left" style="width: 66.66%">
+						<input type="text" placeholder="Introduzca la dirección" name="address" id="address" data-clear-btn="true">
+						<input type="text" placeholder="Introduzca nombre de hotel" name="name" id="name" data-icon="info" data-clear-btn="true">
+					</div>				
+					<div class="ui-block-a" align="right" style="position: relative; top: 20px; right: 15px;">
+						<img src="data/images/png/glyphicons-442-phone-alt.png"> 
+					</div>
+					<div class="ui-block-b" align="left" style="width: 66.66%">
+						<input type="text" placeholder="Introduzca número de contacto" name="phone" id="phone" data-clear-btn="true">
+					</div>
+					<div class="ui-block-a" align="right" style="position: relative; top: 20px; right: 15px;">
+						<img src="data/images/png/glyphicons-49-star-empty.png"> 
+					</div>
+					<div class="ui-block-b" align="left" style="width: 66.66%">
+						<input type="number" placeholder="Introduzca número de estrellas" name="star" id="star" data-clear-btn="true" min="1" max="5">
+					</div>
+				</div>
+			</form>
+		</div>
+		<div data-role="footer" align="center">
+			<a id="btnCompleteRegistry" data-role="button" data-icon="edit">Registrar Hotel</a>
+			<a id="btnBack" data-role="button" data-icon="back">Retornar</a>
+		</div>
+
+		<div data-role="popup" id="regComplete" class="ui-page-theme-b" style="height: auto; width: 325px; margin: auto; padding: 0">
+			<div data-role="header" align="center">  
+				<h6>
+					<img src="data/images/png/glyphicons-505-alert.png">
+				</h6>
+			</div>
+			<div role="main" data-dismissible="false">
+				<div class="ui-field-contain">
+					<p align="center">
+						<b>¡ATENCIÓN!</b>
+						El registro del Hotel ha sido completado exitosamente!
+					</p>
+				</div>
+			</div>
+			<div data-role="footer" style="padding: 0; margin: 0 auto;" align="center">
+				<a href="#" data-rel="back" data-role="button" data-icon="check">Ok, entiendo.</a>
+			</div>
+		</div>
+
+		<div data-role="popup" id="alert1" class="ui-page-theme-b" style="height: auto; width: 325px; margin: auto">
+			<div data-role="header" align="center">
+				<h6>
+					<img src="data/images/png/glyphicons-505-alert.png">
+				</h6>
+			</div>
+			<div role="main" data-dismissible="false">
+				<div class="ui-field-contain">
+					<p align="center">
+						<b>¡ATENCIÓN!</b>Se ha encontrado un problema con el servício. Intente nuevamente.
+					</p>
+				</div>
+			</div>
+			<div data-role="footer" align="center" style="margin: 0 auto; padding: 0">
+				<a href="#" data-rel="back" data-role="button" data-icon="check">Ok, entiendo.</a>
+			</div>
+		</div>
+	</div>
+
+
+
+	<div data-role="page" id="ListPage" class="ui-page-theme-b">
+		<div data-role="header">
+			<p align="center">
+				Lista de Hoteles
+			</p>
+			<div data-role="navbar" data-iconpos="bottom">
+				<ul>
+					<li><a id="btnList" data-icon="info" class="ui-btn-active"></a></li>
+					<li><a id="btnHotels" data-icon="location"></a></li>
+				</ul>
+			</div>
+		</div>
+		<div role="main" class="ui-content">
+					<ul data-role="listview" id="listHotel" data-inset="true" class="touch" data-split-icon="delete" data-icon="false"></ul>
+		</div>
+		<div data-role="content" align="center" style="padding: 0; margin: 25px auto; width: 50%">
+			<a href="#Homepage" data-role="button" data-icon="back">Retornar</a>
+		</div>
+
+
+		<div data-role="popup" id="confirm" class="ui-content" data-theme="b">
+			<p id="question">¿Está seguro/a que desea eliminar el hotel seleccionado?</p>
+			<div class="ui-grid-a">
+				<div class="ui-block-a">
+					<a id="yes" class="ui-btn ui-corner-all ui-btn-c" dala-rel="back">Si, claro</a>
+				</div>
+				<div class="ui-block-b">
+					<a id="cancel" class="ui-btn ui-corner-all ui-btn-c" data-rel="back">Cancelar</a>
+				</div>
+			</div>
+		</div>
+	</div>
+
+
+
+	<div data-role="page" id="HotelPage" class="ui-page-theme-b" style="height: auto; margin: 0 auto;">
+		<div data-role="header">
+			<p align="center">
+				Hoteles Registrados
+			</p>
+			<div data-role="navbar" data-iconpos="bottom">
+				<ul>
+					<li><a href="#ListPage" data-icon="info"></a></li>
+					<li><a id="btnHotels" data-icon="location" class="ui-btn-active"></a></li>
+				</ul>
+			</div>
+		</div>
+		<div data-role="content">
+			<p align="center">
+				Si deseas marcar la ruta desde tu ubicación, puedes dar click al marcador para obtenerlo.
+			</p>
+		</div>
+		<div data-role="content" id="HotelMap">
+			
+		</div>
+		<div data-role="content" align="center" style="padding: 0; margin: 25px auto; width: 50%">
+			<a href="#" data-rel="back" data-role="button" data-icon="back">Retornar</a>
+		</div>
+	</div>
+
+
+
+	<div data-role="page" id="alert2" data-dialog="true" class="ui-page-theme-c" style=" width: 325px; position: relative; margin: 0 auto; top: 33.33%" align="center">
+		<div data-role="header" align="center">
+			<h6>
+				<img src="data/images/png/glyphicons-505-alert.png">
+			</h6>
+		</div>
+		<div role="main" data-dismissible="false" class="ui-body-c">
+			<div class="ui-field-contain">
+				<p align="center">
+					<b>¡ATENCIÓN!</b> No se ha encontrado ningún registro de hoteles. Por favor, registre uno para ver lista.
+				</p>
+			</div>
+		</div>
+	</div>
+</body>
+</html>
